@@ -4,6 +4,7 @@ import {
   StateTree,
   StoreWithState,
   StateDescriptor,
+  GenericStore,
   PiniaCustomProperties,
 } from './types'
 
@@ -59,7 +60,7 @@ export const getClientApp = () => clientApp
  * Plugin to extend every store
  */
 export interface PiniaStorePlugin {
-  (app: App): Partial<PiniaCustomProperties>
+  (context: { app: App; store: GenericStore }): Partial<PiniaCustomProperties>
 }
 
 /**
@@ -85,7 +86,14 @@ export interface Pinia {
    *
    * @internal
    */
-  _p: Array<() => Partial<PiniaCustomProperties>>
+  _p: Array<PiniaStorePlugin>
+
+  /**
+   * App linked to this Pinia instance
+   *
+   * @internal
+   */
+  _a: App
 }
 
 declare module '@vue/runtime-core' {
@@ -117,7 +125,7 @@ export function createPinia(): Pinia {
 
   const pinia: Pinia = {
     install(app: App) {
-      localApp = app
+      pinia._a = localApp = app
       // pinia._a = app
       app.provide(piniaSymbol, pinia)
       app.config.globalProperties.$pinia = pinia
@@ -129,7 +137,7 @@ export function createPinia(): Pinia {
         // installing pinia's plugin
         setActivePinia(pinia)
       }
-      toBeInstalled.forEach((plugin) => _p.push(plugin.bind(null, localApp!)))
+      toBeInstalled.forEach((plugin) => _p.push(plugin))
     },
 
     use(plugin) {
@@ -142,11 +150,13 @@ export function createPinia(): Pinia {
       if (!localApp) {
         toBeInstalled.push(plugin)
       } else {
-        _p.push(plugin.bind(null, localApp))
+        _p.push(plugin)
       }
     },
 
     _p,
+    // it's actually undefined here
+    _a: localApp!,
 
     state,
   }
